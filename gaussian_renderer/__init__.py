@@ -9,14 +9,15 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import copy
 import json
 import math
 import torch
-from diff_gaussian_rasterization import GaussianRasterizationSettings, ExtendedSettings, GaussianRasterizer
+from diff_gaussian_rasterization import GaussianRasterizationSettings, ExtendedSettings, GaussianRasterizer, SortMode, GlobalSortOrder
 from scene.gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
 
-def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, splat_args: ExtendedSettings = None, render_depth: bool = False):
+def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, splat_args: ExtendedSettings = None, render_depth: bool = False, debug_type: int = -1, tile_mask: torch.Tensor = None):
     """
     Render the scene. 
     
@@ -34,6 +35,17 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
     tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
 
+    if tile_mask is not None:
+        splat_args = copy.deepcopy(splat_args)
+        splat_args.sort_settings.sort_mode = SortMode.ADAPTIVE
+        splat_args.sort_settings.sort_order = GlobalSortOrder.Z_DEPTH
+        splat_args.culling_settings.tile_based_culling = False
+        tiles_x = (int(viewpoint_camera.image_width) + 15) // 16
+        tiles_y = (int(viewpoint_camera.image_height) + 15) // 16
+        tile_mask = tile_mask.detach().to(device="cuda", dtype=torch.uint8).contiguous().reshape(-1)
+        if tile_mask.numel() != tiles_x * tiles_y:
+            raise RuntimeError("tile mask has %d entries, expected %d" % (tile_mask.numel(), tiles_x * tiles_y))
+
     raster_settings = GaussianRasterizationSettings(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
@@ -49,7 +61,9 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         prefiltered=False,
         settings=splat_args,
         render_depth=render_depth,
-        debug=pipe.debug
+        debug=pipe.debug,
+        debug_type=debug_type,
+        tile_mask=tile_mask
     )
 
     rasterizer = GaussianRasterizer(raster_settings=raster_settings)
