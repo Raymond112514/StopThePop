@@ -49,7 +49,7 @@ For a full breakdown on how to get the code running, please consider [3DGS's Rea
 
 The project is split into submodules, each maintained in a separate github repository:
 
-* [StopThePop-Rasterization](https://github.com/r4dl/StopThePop-Rasterization): A clone of the original [diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization) that contains our CUDA hierarchical rasterizer implementation
+* [StopThePop-Rasterization](https://github.com/r4dl/StopThePop-Rasterization): A clone of the original [diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization) that contains the CUDA hierarchical rasterizer. In this repository the rasterizer source is tracked directly under `submodules/diff-gaussian-rasterization`, including the adaptive per-tile sort.
 * [SIBR_StopThePop](https://github.com/r4dl/SIBR_StopThePop): A clone of the [SIBR Core](https://gitlab.inria.fr/sibr/sibr_core) project, containing an adapted viewer with our additional settings and functionalities
 * [PoppingDetection](https://github.com/r4dl/PoppingDetection): A self-contained module for our proposed popping detection metric
 
@@ -69,7 +69,7 @@ If you use any of our additional functionalities, please cite our paper and link
 The repository contains submodules, thus please check it out with 
 ```shell
 # HTTPS
-git clone https://github.com/r4dl/StopThePop --recursive
+git clone https://github.com/Raymond112514/StopThePop --recursive
 ```
 
 ## Setup
@@ -93,6 +93,26 @@ pip install submodules/diff-gaussian-rasterization --no-build-isolation
 ```
 
 > **Note:** This can take several minutes. If you experience unreasonably long build times, consider using [our fast build mode](#stopthepop_fastbuild).
+
+The adaptive experiment also needs the PoppingDetection Python packages, which are not in `environment.yml`:
+
+```shell
+pip install opencv-python scipy matplotlib "imageio[ffmpeg]"
+```
+
+Build the extensions with the CUDA toolkit that matches PyTorch 1.12.1 (CUDA 11.6 or 11.8).
+
+### Adaptive tile experiment
+
+`percent_ablation.py` renders two orbits at 960 px and 64 frames: the train scene around camera 188, and the playroom scene around camera 162. Each frame is rendered with vanilla sorting, adaptive budgets of 20, 40, 60, and 80 percent, and full StopThePop. The adaptive mask is the top fraction of 16×16 tiles by vanilla-versus-StopThePop error on the first frame, then carried forward with RAFT optical flow.
+
+Download the pretrained scenes from https://cloud.tugraz.at/index.php/s/xXzQBsKBSMPPMr6/download and place `train` and `playroom` in `pretrained/`. Each scene needs `cameras.json`, `cfg_args`, `config.json`, and `point_cloud/iteration_30000/point_cloud.ply`. The RAFT-Sintel weights are included at `models/raft-sintel.pth`. Scene checkpoints and rendered videos are not part of this repository.
+
+```shell
+python percent_ablation.py
+```
+
+Videos are written to `pretrained/<scene>/inference/orbit_<camera>/adaptive_20.mp4` through `adaptive_80.mp4`.
 
 ### Running
 
